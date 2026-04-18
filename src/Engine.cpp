@@ -120,7 +120,7 @@ void Engine::loadModel() {
     cp.n_threads       = mConfig->threadCount;
     cp.n_batch         = mConfig->batchSize;
     cp.n_threads_batch = mConfig->batchThreads;
-    cp.n_ctx           = mConfig->contextLength <= 0 ? llama_model_n_ctx_train(m_model) : mConfig->contextLength;
+    cp.n_ctx           = mConfig->contextLength == 0 ? llama_model_n_ctx_train(m_model) : mConfig->contextLength;
 
     m_ctx = llama_init_from_model(m_model, cp);
     if (!m_ctx) {

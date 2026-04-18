@@ -2,7 +2,7 @@
 #include <llama.h>
 #include <QMutex>
 #include <QDebug>
-
+#include <QMetaType>
 
 namespace QtLlama {
    inline void ensureBackendInit() {
@@ -21,5 +21,18 @@ namespace QtLlama {
                 default: break; // suppress info/debug by default
             }
         }, nullptr);
-    } 
+    }
+
+
+
+   inline void ensureMetaTypesRegistered() {
+        static QBasicMutex mutex;
+        static bool registered = false;
+        QMutexLocker lock(&mutex);
+        if (registered) return;
+        qRegisterMetaType<std::vector<float>>("std::vector<float>");
+        qRegisterMetaType<QtLlama::Message>("Message");
+        qRegisterMetaType<QList<QtLlama::Message>>("QList<Message>");
+        registered = true;
+    }
 }

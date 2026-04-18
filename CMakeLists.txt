@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.16)
 # 1. Project definition with version
 project(QtLlama VERSION 1.0.0 LANGUAGES CXX)
 
+option(QTLLAMA_BUILD_EXAMPLES "Build QtLlama examples" OFF)
+
+
 find_package(Qt6 COMPONENTS Core QUIET)
 if(Qt6_FOUND)
     set(QT_VERSION_MAJOR 6)
@@ -43,6 +46,11 @@ target_include_directories(QtLlama PUBLIC
 target_link_libraries(QtLlama PUBLIC Qt${QT_VERSION_MAJOR}::Core llama)
 
 set_target_properties(QtLlama PROPERTIES AUTOMOC ON CXX_STANDARD 23)
+
+
+if(QTLLAMA_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 # ==============================================================================
 # INSTALLATION & EXPORT LOGIC

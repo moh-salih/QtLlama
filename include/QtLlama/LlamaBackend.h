@@ -4,6 +4,8 @@
 #include <QDebug>
 #include <QMetaType>
 
+#include <QtLlama/Types.h>
+
 namespace QtLlama {
    inline void ensureBackendInit() {
         static QBasicMutex mutex;

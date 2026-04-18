@@ -1,0 +1,9 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Ensure consumers automatically find Qt6 and llama when they find_package(QtLlama)
+find_dependency(Qt6 COMPONENTS Core)
+find_dependency(llama)
+
+include("${CMAKE_CURRENT_LIST_DIR}/QtLlamaTargets.cmake")

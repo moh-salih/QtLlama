@@ -15,7 +15,7 @@ Embedder::~Embedder() {
 void Embedder::initialize(IEmbedder* engine) {
     if (mWorkerThread) return;
 
-    qRegisterMetaType<std::vector<float>>("std::vector<float>");
+    ensureMetaTypesRegistered();
 
     mEngine = engine;
     mWorkerThread = new QThread(this);

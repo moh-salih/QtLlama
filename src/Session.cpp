@@ -15,9 +15,10 @@ Session::~Session() {
 void Session::initialize(IEngine* engine) {
     if (mWorkerThread) return;
     
-    qRegisterMetaType<QList<QtLlama::Message>>("QList<QtLlama::Message>");
-    qRegisterMetaType<QtLlama::Message>("QtLlama::Message");
-    
+
+    ensureMetaTypesRegistered();
+
+
     Q_ASSERT_X(engine != nullptr, "Session::initialize", "engine must not be null");
     Q_ASSERT_X(mEngine == nullptr, "Session::initialize", "initialize() called twice");
 
@@ -68,7 +69,7 @@ void Session::setConfig(const Config &config) {
 void Session::generate(const QList<QtLlama::Message>& messages, int sessionId) {
     if (mStatus != Status::Ready) return;
     mCurrentSessionId = sessionId;
-    QMetaObject::invokeMethod(mEngine, "generate", Q_ARG(QList<QtLlama::Message>, messages));
+    QMetaObject::invokeMethod(mEngine, "generate", Q_ARG(QList<Message>, messages));
 }
 
 

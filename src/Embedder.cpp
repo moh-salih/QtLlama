@@ -1,4 +1,4 @@
-#include <QMetaType>
+#include <QtLlama/LlamaBackend.h>
 #include <QtLlama/Embedder.h>
 
 namespace QtLlama {

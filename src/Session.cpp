@@ -1,4 +1,6 @@
 #include <QtLlama/Session.h>
+#include <QtLlama/LlamaBackend.h>
+
 #include <QDebug>
 
 namespace QtLlama {

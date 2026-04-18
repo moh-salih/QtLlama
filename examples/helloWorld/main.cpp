@@ -2,6 +2,8 @@
 #include <QtLlama/Session.h>
 #include <QtLlama/Engine.h>
 #include <QDebug>
+#include <QFile>
+
 
 
 int main(int argc, char *argv[]) {

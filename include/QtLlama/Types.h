@@ -60,8 +60,11 @@ namespace QtLlama {
 
 } // namespace QtLlama
 
+#ifndef Q_META_TYPE_STD_VECTOR_FLOAT_DECLARED
+#define Q_META_TYPE_STD_VECTOR_FLOAT_DECLARED
+    Q_DECLARE_METATYPE(std::vector<float>)
+#endif
 
-Q_DECLARE_METATYPE(std::vector<float>)
 Q_DECLARE_METATYPE(QtLlama::Message)
 Q_DECLARE_METATYPE(QList<QtLlama::Message>)
 

@@ -12,10 +12,6 @@ namespace QtLlama {
 
 class Session : public QObject {
     Q_OBJECT
-    Q_PROPERTY(bool isGenerating READ isGenerating NOTIFY isGeneratingChanged)
-    Q_PROPERTY(QtLlama::Status status READ status NOTIFY statusChanged)
-    Q_PROPERTY(QString statusText READ statusText NOTIFY statusChanged)
-
 public:
     explicit Session(QObject *parent = nullptr);
     ~Session() override;

@@ -54,6 +54,7 @@ namespace QtLlama {
         int             nCtx                    = 2048;
         int             nThreads                = 1;
         int             nGpuLayers              = 0;
+        bool            autoReload              = true;
     };
 
 

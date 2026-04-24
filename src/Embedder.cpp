@@ -40,6 +40,7 @@ void Embedder::initialize(IEmbedder* engine) {
     });
 
     connect(mEngine, &IEmbedder::errorOccurred, this, &Embedder::errorOccurred);
+    connect(mEngine, &IEmbedder::reloadRequired, this, &Embedder::reloadRequired);
 
     connect(mWorkerThread, &QThread::finished, mEngine, &QObject::deleteLater);
     mWorkerThread->start();
@@ -63,6 +64,10 @@ void Embedder::loadModel() {
 
 void Embedder::unloadModel() {
     QMetaObject::invokeMethod(mEngine, "unloadModel");
+}
+
+void Embedder::reloadModel() {
+    if (mEngine) QMetaObject::invokeMethod(mEngine, "reloadModel");
 }
 
 void Embedder::stop() {

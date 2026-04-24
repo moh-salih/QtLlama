@@ -38,6 +38,7 @@ public:
 
     void loadModel();
     void unloadModel();
+    void reloadModel();
     void stop();
 
 signals:
@@ -46,7 +47,7 @@ signals:
     void isGeneratingChanged(bool isGenerating);
     void statusChanged(QtLlama::Status status);
     void errorOccurred(const QString& msg);
-
+    void reloadRequired();
 private:
     IEngine                   * mEngine = nullptr;
     QThread                   * mWorkerThread = nullptr;

@@ -91,7 +91,7 @@ void Engine::setConfig(QSharedPointer<Config> newConfig) {
     const bool needsReload = mConfig && requiresReload(*newConfig, *mConfig);
     mConfig = newConfig;
 
-    if (mStatus == Status::Ready) {
+    if (m_ctx) {
         if (needsReload) {
             if (mConfig->autoReload)
                 reloadModel();

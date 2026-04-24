@@ -12,9 +12,24 @@ EmbeddingWorker::~EmbeddingWorker() {
     unloadModel();
 }
 
-void EmbeddingWorker::setConfig(QSharedPointer<EmbedConfig> config){
-    mConfig = config;
+bool EmbeddingWorker::requiresReload(const EmbedConfig& next, const EmbedConfig& current) const {
+    return next.modelPath  != current.modelPath
+        || next.nCtx       != current.nCtx
+        || next.nThreads   != current.nThreads
+        || next.nGpuLayers != current.nGpuLayers;
 }
+
+void EmbeddingWorker::setConfig(QSharedPointer<EmbedConfig> config) {
+    const bool needsReload = mConfig && requiresReload(*config, *mConfig);
+    mConfig = config;
+    if (needsReload && m_ctx) {
+        if (mConfig->autoReload)
+            { unloadModel(); loadModel(); }
+        else
+            emit reloadRequired();
+    }
+}
+
 
 void EmbeddingWorker::loadModel() {
     unloadModel(); 
@@ -112,6 +127,11 @@ void EmbeddingWorker::unloadModel() {
         m_model = nullptr;
     }
     emit modelStatusChanged(Status::Idle);
+}
+
+void EmbeddingWorker::reloadModel(){
+    unloadModel();
+    loadModel();
 }
 
 void EmbeddingWorker::stop() { m_abort.store(true); }

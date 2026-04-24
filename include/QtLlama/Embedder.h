@@ -20,6 +20,7 @@ public:
 
     void loadModel();
     void unloadModel();
+    void reloadModel();
     void generateEmbedding(const QString& text, int chunkIndex);
     void stop();
 
@@ -32,6 +33,7 @@ signals:
     void statusChanged(QtLlama::Status status);
     void isGeneratingChanged(bool);
     void errorOccurred(const QString& msg);
+    void reloadRequired();
 
 private:
     IEmbedder                   * mEngine = nullptr;

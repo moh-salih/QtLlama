@@ -29,7 +29,7 @@ signals:
     void modelStatusChanged(QtLlama::Status status);
     void isGeneratingChanged(bool isGenerating);
     void errorOccurred(const QString &message);
-    void shouldReload();
+    void reloadRequired();
 };
 
 } // namespace QtLlama

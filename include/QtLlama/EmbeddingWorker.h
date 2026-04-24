@@ -16,6 +16,7 @@ public:
 public slots:
     void loadModel() override;
     void unloadModel() override;
+    void reloadModel() override;
     void generateEmbedding(const QString &text, int chunkIndex) override;
     void setConfig(QSharedPointer<EmbedConfig> config) override;
     void stop() override;
@@ -27,6 +28,13 @@ private:
 
     std::atomic<bool>           m_abort{false};
     QSharedPointer<EmbedConfig>   mConfig;
+
+
+
+
+
+
+    bool requiresReload(const EmbedConfig& next, const EmbedConfig& current) const;
 };
 
 } // namespace QtLlama

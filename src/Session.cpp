@@ -58,6 +58,9 @@ void Session::initialize(IEngine* engine) {
         emit responseReady(full, mCurrentSessionId);
     });
 
+
+    connect(mEngine, &IEngine::reloadRequired, this, &Session::reloadRequired);
+
     connect(mWorkerThread, &QThread::finished, mEngine, &QObject::deleteLater);
     mWorkerThread->start();
 }
@@ -100,6 +103,9 @@ void Session::unloadModel() {
     if (mEngine) QMetaObject::invokeMethod(mEngine, "unloadModel");
 }
 
+void Session::reloadModel() {
+    if(mEngine) QMetaObject::invokeMethod(mEngine, "reloadModel");
+}
 QString Session::statusText() const {
     switch (mStatus) {
         case Status::Idle:    return tr("No Model Loaded");

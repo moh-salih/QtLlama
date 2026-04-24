@@ -18,6 +18,7 @@ public slots:
     virtual void setConfig(QSharedPointer<Config> config) = 0;
     virtual void loadModel() = 0;
     virtual void unloadModel() = 0;
+    virtual void reloadModel() = 0;
     virtual void generate(const QList<Message>& messages) = 0;
     virtual void stop() = 0;
     virtual void reset() = 0;
@@ -28,6 +29,7 @@ signals:
     void modelStatusChanged(QtLlama::Status status);
     void isGeneratingChanged(bool isGenerating);
     void errorOccurred(const QString &message);
+    void shouldReload();
 };
 
 } // namespace QtLlama

@@ -18,6 +18,7 @@ public slots:
     void setConfig(QSharedPointer<Config> config) override;
     void loadModel() override;
     void unloadModel() override;
+    void reloadModel() override;
     void generate(const QList<Message>& messages) override;
     void stop() override;
     void reset() override;
@@ -32,6 +33,12 @@ private:
 
     QSharedPointer<Config>      mConfig;
     std::atomic<bool>           m_abort{false};
+
+
+
+
+    bool requiresReload(const Config& next, const Config& current);
+    void buildSampler();
 };
 
 } // namespace QtLlama

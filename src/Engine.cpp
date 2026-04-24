@@ -87,10 +87,49 @@ Engine::~Engine() {
     unloadModel();
 }
 
-void Engine::setConfig(QSharedPointer<Config> config) {
-    mConfig = config;
+void Engine::setConfig(QSharedPointer<Config> newConfig) {
+    const bool needsReload = mConfig && requiresReload(*newConfig, *mConfig);
+    mConfig = newConfig;
+
+    if (mStatus == Status::Ready) {
+        if (needsReload) {
+            if (mConfig->autoReload)
+                reloadModel();
+            else
+                emit reloadRequired();  // caller decides when
+        } else {
+            buildSampler();
+        }
+    }
 }
 
+
+bool Engine::requiresReload(const Config& next, const Config& current){
+    return next.modelPath       != current.modelPath
+        || next.contextLength   != current.contextLength
+        || next.batchSize       != current.batchSize
+        || next.threadCount     != current.threadCount
+        || next.nGpuLayers      != current.nGpuLayers; 
+}
+
+
+
+
+void Engine::buildSampler() {
+    if (m_sampler) { llama_sampler_free(m_sampler); m_sampler = nullptr; }
+
+    m_sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    llama_sampler_chain_add(m_sampler, llama_sampler_init_top_k(mConfig->topK));
+    llama_sampler_chain_add(m_sampler, llama_sampler_init_top_p(mConfig->topP, 1));
+    llama_sampler_chain_add(m_sampler, llama_sampler_init_temp(mConfig->temperature));
+    llama_sampler_chain_add(m_sampler, llama_sampler_init_penalties(
+        mConfig->repeatPenaltyLastN,
+        mConfig->repeatPenalty,
+        mConfig->penaltyFreq,
+        mConfig->penaltyPresent
+    ));
+    llama_sampler_chain_add(m_sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+}
 void Engine::loadModel() {
     unloadModel();
     emit modelStatusChanged(Status::Loading);
@@ -129,19 +168,14 @@ void Engine::loadModel() {
         return;
     }
 
-    m_sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
-    llama_sampler_chain_add(m_sampler, llama_sampler_init_top_k(mConfig->topK));
-    llama_sampler_chain_add(m_sampler, llama_sampler_init_top_p(mConfig->topP, 1));
-    llama_sampler_chain_add(m_sampler, llama_sampler_init_temp(mConfig->temperature));
-    llama_sampler_chain_add(m_sampler, llama_sampler_init_penalties(
-        mConfig->repeatPenaltyLastN,                 
-        mConfig->repeatPenalty,   
-        mConfig->penaltyFreq,                     
-        mConfig->penaltyPresent
-    ));
-
-    llama_sampler_chain_add(m_sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+    buildSampler(); 
+    
     emit modelStatusChanged(Status::Ready);
+}
+
+void Engine::reloadModel() {
+   unloadModel();
+   loadModel();
 }
 
 void Engine::unloadModel() {
@@ -162,6 +196,10 @@ void Engine::generate(const QList<Message>& messages) {
 
     emit isGeneratingChanged(true);
     m_abort.store(false);
+
+
+    llama_sampler_reset(m_sampler);
+
 
     // 1. Format messages into a single prompt string.
     const QString formatted = applyPromptFormat(messages);

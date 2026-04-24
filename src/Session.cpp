@@ -68,6 +68,7 @@ void Session::setConfig(const Config &config) {
         QMetaObject::invokeMethod(mEngine, "setConfig", Q_ARG(QSharedPointer<Config>, mConfig));
 }
 
+
 void Session::generate(const QList<QtLlama::Message>& messages, int sessionId) {
     if (mStatus != Status::Ready) return;
     mCurrentSessionId = sessionId;

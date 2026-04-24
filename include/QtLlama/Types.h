@@ -46,6 +46,7 @@ namespace QtLlama {
         int             repeatPenaltyLastN      = 64;
         float           penaltyFreq             = 0.0f;
         float           penaltyPresent          = 0.0f;
+        bool            autoReload              = true; 
     };
 
     struct EmbedConfig {

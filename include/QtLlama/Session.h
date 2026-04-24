@@ -55,6 +55,7 @@ private:
 
     bool                        mIsGenerating = false;
     std::atomic<int>            mCurrentSessionId{-1};
+
 };
 
 } // namespace QtLlama

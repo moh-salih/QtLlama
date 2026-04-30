@@ -91,7 +91,7 @@ void Session::generate(const QString& userMessage, const QString& systemPrompt, 
 }
 
 void Session::stop() {
-    if (mEngine) QMetaObject::invokeMethod(mEngine, "stop");
+    if (mEngine) QMetaObject::invokeMethod(mEngine, "stop", Qt::DirectConnection);
 }
 
 void Session::loadModel() {

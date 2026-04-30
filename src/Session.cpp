@@ -1,6 +1,5 @@
 #include <QtLlama/Session.h>
 #include <QtLlama/LlamaBackend.h>
-
 #include <QDebug>
 
 namespace QtLlama {
@@ -16,10 +15,8 @@ Session::~Session() {
 
 void Session::initialize(IEngine* engine) {
     if (mWorkerThread) return;
-    
 
     ensureMetaTypesRegistered();
-
 
     Q_ASSERT_X(engine != nullptr, "Session::initialize", "engine must not be null");
     Q_ASSERT_X(mEngine == nullptr, "Session::initialize", "initialize() called twice");
@@ -49,15 +46,11 @@ void Session::initialize(IEngine* engine) {
         }
     });
 
-    connect(mEngine, &IEngine::errorOccurred, this, [this](const QString& msg){
-        emit errorOccurred(msg);
-    });
-
+    connect(mEngine, &IEngine::errorOccurred, this, &Session::errorOccurred);
 
     connect(mEngine, &IEngine::responseReady, this, [this](const QString& full){
         emit responseReady(full, mCurrentSessionId);
     });
-
 
     connect(mEngine, &IEngine::reloadRequired, this, &Session::reloadRequired);
 
@@ -66,18 +59,16 @@ void Session::initialize(IEngine* engine) {
 }
 
 void Session::setConfig(const Config &config) {
-    *mConfig = config; 
+    *mConfig = config;
     if (mEngine)
         QMetaObject::invokeMethod(mEngine, "setConfig", Q_ARG(QSharedPointer<Config>, mConfig));
 }
-
 
 void Session::generate(const QList<QtLlama::Message>& messages, int sessionId) {
     if (mStatus != Status::Ready) return;
     mCurrentSessionId = sessionId;
     QMetaObject::invokeMethod(mEngine, "generate", Q_ARG(QList<Message>, messages));
 }
-
 
 void Session::generate(const QString& userMessage, int sessionId) {
     generate({ { Role::User, userMessage } }, sessionId);
@@ -91,7 +82,7 @@ void Session::generate(const QString& userMessage, const QString& systemPrompt, 
 }
 
 void Session::stop() {
-    if (mEngine) QMetaObject::invokeMethod(mEngine, "stop", Qt::DirectConnection);
+    if (mEngine) QMetaObject::invokeMethod(mEngine, "stop");
 }
 
 void Session::loadModel() {
@@ -106,6 +97,7 @@ void Session::unloadModel() {
 void Session::reloadModel() {
     if(mEngine) QMetaObject::invokeMethod(mEngine, "reloadModel");
 }
+
 QString Session::statusText() const {
     switch (mStatus) {
         case Status::Idle:    return tr("No Model Loaded");

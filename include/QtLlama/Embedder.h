@@ -32,7 +32,7 @@ signals:
     void embeddingReady(const std::vector<float>& embedding, const QString& text, int chunkIndex);
     void statusChanged(QtLlama::Status status);
     void isGeneratingChanged(bool);
-    void errorOccurred(const QString& msg);
+    void errorOccurred(QtLlama::Error error);
     void reloadRequired();
 
 private:

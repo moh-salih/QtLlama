@@ -1,6 +1,6 @@
 #include <QtLlama/EmbeddingWorker.h>
-#include <QDebug>
 #include <QtLlama/LlamaBackend.h>
+#include <QDebug>
 
 namespace QtLlama {
 
@@ -30,43 +30,43 @@ void EmbeddingWorker::setConfig(QSharedPointer<EmbedConfig> config) {
     }
 }
 
-
 void EmbeddingWorker::loadModel() {
-    unloadModel(); 
+    unloadModel();
     emit modelStatusChanged(Status::Loading);
 
     if (!mConfig || mConfig->modelPath.isEmpty()) {
-        qCritical() << "QtLlama: Embedding model path is empty.";
-        emit errorOccurred(tr("Failed to load embedding model: Path is empty."));
+        qCritical() << "QtLlama:" << errorToString(Error::ModelPathEmpty);
+        emit errorOccurred(Error::ModelPathEmpty);
         emit modelStatusChanged(Status::Error);
         return;
     }
 
     qInfo() << "=== LLAMA EMBEDDING ENGINE LOADING ===";
-    qInfo() << "  Model Path:" << mConfig->modelPath;
-    qInfo() << "  Context Size (nCtx):" << mConfig->nCtx;
+    qInfo() << "  Model Path:"   << mConfig->modelPath;
+    qInfo() << "  Context Size:" << mConfig->nCtx;
     qInfo() << "  Thread Count:" << mConfig->nThreads;
-    qInfo() << "  GPU Layers:" << mConfig->nGpuLayers;
+    qInfo() << "  GPU Layers:"   << mConfig->nGpuLayers;
 
     llama_model_params mp = llama_model_default_params();
-    mp.n_gpu_layers     = mConfig->nGpuLayers;
+    mp.n_gpu_layers = mConfig->nGpuLayers;
 
     m_model = llama_model_load_from_file(mConfig->modelPath.toStdString().c_str(), mp);
     if (!m_model) {
-        qCritical() << "QtLlama: Failed to load model from" << mConfig->modelPath;
-        emit errorOccurred(tr("Failed to load embedding model file."));
+        qCritical() << "QtLlama:" << errorToString(Error::ModelLoadFailed);
+        emit errorOccurred(Error::ModelLoadFailed);
         emit modelStatusChanged(Status::Error);
         return;
     }
 
     llama_context_params cp = llama_context_default_params();
-    cp.n_ctx            = mConfig->nCtx;
-    cp.n_threads        = mConfig->nThreads;
-    cp.embeddings = true;
+    cp.n_ctx        = mConfig->nCtx;
+    cp.n_threads    = mConfig->nThreads;
+    cp.embeddings   = true;
 
     m_ctx = llama_init_from_model(m_model, cp);
     if (!m_ctx) {
-        qCritical() << "QtLlama: Failed to init context for embedding";
+        qCritical() << "QtLlama:" << errorToString(Error::ContextInitFailed);
+        emit errorOccurred(Error::ContextInitFailed);
         emit modelStatusChanged(Status::Error);
         return;
     }
@@ -77,7 +77,7 @@ void EmbeddingWorker::loadModel() {
 void EmbeddingWorker::generateEmbedding(const QString &text, int chunkIndex) {
     if (!m_ctx || !m_model) return;
 
-    qDebug() << "QtLlama: Generating embedding for chunk" << chunkIndex << "(text length:" << text.length() << "chars)";
+    qDebug() << "QtLlama: Generating embedding for chunk" << chunkIndex;
     emit isGeneratingChanged(true);
     m_abort.store(false);
 
@@ -85,10 +85,12 @@ void EmbeddingWorker::generateEmbedding(const QString &text, int chunkIndex) {
     const llama_vocab *vocab = llama_model_get_vocab(m_model);
 
     std::vector<llama_token> tokens(stdText.size() + 32);
-    int n_tokens = llama_tokenize(vocab, stdText.c_str(), stdText.size(), tokens.data(), tokens.size(), true, true);
+    int n_tokens = llama_tokenize(vocab, stdText.c_str(), stdText.size(),
+                                  tokens.data(), tokens.size(), true, true);
 
     if (n_tokens < 0) {
-        emit errorOccurred(tr("Tokenization failed for embedding chunk."));
+        qCritical() << "QtLlama:" << errorToString(Error::TokenizationFailed);
+        emit errorOccurred(Error::TokenizationFailed);
         emit isGeneratingChanged(false);
         return;
     }
@@ -96,7 +98,8 @@ void EmbeddingWorker::generateEmbedding(const QString &text, int chunkIndex) {
     llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
 
     if (llama_decode(m_ctx, batch) != 0) {
-        emit errorOccurred(tr("Llama decode failed during embedding calculation."));
+        qCritical() << "QtLlama:" << errorToString(Error::DecodeFailed);
+        emit errorOccurred(Error::DecodeFailed);
         emit isGeneratingChanged(false);
         return;
     }
@@ -109,8 +112,8 @@ void EmbeddingWorker::generateEmbedding(const QString &text, int chunkIndex) {
         vector.assign(embd, embd + n_embd);
         emit vectorReady(vector, text, chunkIndex);
     } else {
-        qCritical() << "QtLlama: Retrieve failed. Check model compatibility.";
-        emit errorOccurred(tr("Could not retrieve embedding vector."));
+        qCritical() << "QtLlama:" << errorToString(Error::EmbeddingRetrieveFailed);
+        emit errorOccurred(Error::EmbeddingRetrieveFailed);
     }
 
     emit isGeneratingChanged(false);
@@ -118,23 +121,17 @@ void EmbeddingWorker::generateEmbedding(const QString &text, int chunkIndex) {
 
 void EmbeddingWorker::unloadModel() {
     m_abort.store(true);
-    if (m_ctx) {
-        llama_free(m_ctx);
-        m_ctx = nullptr;
-    }
-    if (m_model) {
-        llama_model_free(m_model);
-        m_model = nullptr;
-    }
+    if (m_ctx)   { llama_free(m_ctx);          m_ctx   = nullptr; }
+    if (m_model) { llama_model_free(m_model);  m_model = nullptr; }
     emit modelStatusChanged(Status::Idle);
 }
 
-void EmbeddingWorker::reloadModel(){
+void EmbeddingWorker::reloadModel() {
     unloadModel();
     loadModel();
 }
 
-void EmbeddingWorker::stop() { m_abort.store(true); }
+void EmbeddingWorker::stop()  { m_abort.store(true);  }
 void EmbeddingWorker::reset() { m_abort.store(false); }
 
 } // namespace QtLlama

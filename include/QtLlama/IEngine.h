@@ -3,7 +3,6 @@
 #include <QString>
 #include <QList>
 #include <QSharedPointer>
-
 #include <QtLlama/Types.h>
 
 namespace QtLlama {
@@ -28,7 +27,7 @@ signals:
     void responseReady(const QString& fullText);
     void modelStatusChanged(QtLlama::Status status);
     void isGeneratingChanged(bool isGenerating);
-    void errorOccurred(const QString &message);
+    void errorOccurred(QtLlama::Error error);
     void reloadRequired();
 };
 

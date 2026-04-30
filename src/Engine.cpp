@@ -1,19 +1,15 @@
 #include <QtLlama/Engine.h>
 #include <QtLlama/LlamaBackend.h>
-
 #include <QDebug>
-
 
 namespace {
 using namespace QtLlama;
-// Helper 
+
 Formatter autoDetect(llama_model* model) {
     const char* tmpl_ptr = llama_model_chat_template(model, nullptr);
     if (!tmpl_ptr) {
         qWarning() << "QtLlama: Model has no embedded chat template. "
                       "Set Config::promptFormatter explicitly.";
-        // Return a formatter that just passes the last user message through.
-        // This is a last-resort fallback — set promptFormatter explicitly for best results.
         return [](const QList<Message>& messages) -> QString {
             for (int i = messages.size() - 1; i >= 0; --i) {
                 if (messages[i].role == Role::User)
@@ -36,22 +32,16 @@ Formatter autoDetect(llama_model* model) {
 
         for (size_t i = 0; i < (size_t)messages.size(); ++i) {
             const char* roleStr = "user";
-            if (messages[i].role == Role::System)     roleStr = "system";
+            if (messages[i].role == Role::System)         roleStr = "system";
             else if (messages[i].role == Role::Assistant) roleStr = "assistant";
             cMessages.push_back({ roleStr, contentStrings[i].c_str() });
         }
 
         int required = llama_chat_apply_template(
-            tmpl.c_str(),
-            cMessages.data(),
-            cMessages.size(),
-            true,
-            nullptr, 0
-        );
+            tmpl.c_str(), cMessages.data(), cMessages.size(), true, nullptr, 0);
 
         if (required < 0) {
-            qWarning() << "QtLlama: llama_chat_apply_template failed. "
-                          "Returning last user message as fallback.";
+            qWarning() << "QtLlama: llama_chat_apply_template failed.";
             for (int i = messages.size() - 1; i >= 0; --i)
                 if (messages[i].role == Role::User)
                     return messages[i].content;
@@ -60,24 +50,16 @@ Formatter autoDetect(llama_model* model) {
 
         std::vector<char> buf(required + 1, '\0');
         llama_chat_apply_template(
-            tmpl.c_str(),
-            cMessages.data(),
-            cMessages.size(),
-            true,
-            buf.data(),
-            static_cast<int>(buf.size())
-        );
+            tmpl.c_str(), cMessages.data(), cMessages.size(), true,
+            buf.data(), static_cast<int>(buf.size()));
 
         return QString::fromUtf8(buf.data());
     };
 }
 
-    
-}
-
+} // namespace
 
 namespace QtLlama {
-
 
 Engine::Engine(QObject *parent) : IEngine(parent) {
     QtLlama::ensureBackendInit();
@@ -96,24 +78,20 @@ void Engine::setConfig(QSharedPointer<Config> newConfig) {
             if (mConfig->autoReload)
                 reloadModel();
             else
-                emit reloadRequired();  // caller decides when
+                emit reloadRequired();
         } else {
             buildSampler();
         }
     }
 }
 
-
-bool Engine::requiresReload(const Config& next, const Config& current){
+bool Engine::requiresReload(const Config& next, const Config& current) {
     return next.modelPath       != current.modelPath
         || next.contextLength   != current.contextLength
         || next.batchSize       != current.batchSize
         || next.threadCount     != current.threadCount
-        || next.nGpuLayers      != current.nGpuLayers; 
+        || next.nGpuLayers      != current.nGpuLayers;
 }
-
-
-
 
 void Engine::buildSampler() {
     if (m_sampler) { llama_sampler_free(m_sampler); m_sampler = nullptr; }
@@ -130,30 +108,30 @@ void Engine::buildSampler() {
     ));
     llama_sampler_chain_add(m_sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 }
+
 void Engine::loadModel() {
     unloadModel();
     emit modelStatusChanged(Status::Loading);
 
     if (!mConfig || mConfig->modelPath.isEmpty()) {
-        emit errorOccurred("LLM model path is not configured.");
+        qCritical() << "QtLlama:" << errorToString(Error::ModelPathEmpty);
+        emit errorOccurred(Error::ModelPathEmpty);
         emit modelStatusChanged(Status::Error);
         return;
     }
-    
 
     llama_model_params mp = llama_model_default_params();
     mp.n_gpu_layers = mConfig->nGpuLayers;
     m_model = llama_model_load_from_file(mConfig->modelPath.toStdString().c_str(), mp);
 
     if (!m_model) {
-        emit errorOccurred("Failed to load LLM model file");
+        qCritical() << "QtLlama:" << errorToString(Error::ModelLoadFailed);
+        emit errorOccurred(Error::ModelLoadFailed);
         emit modelStatusChanged(Status::Error);
         return;
     }
 
-
     mPromptFormatter = autoDetect(m_model);
-
 
     llama_context_params cp = llama_context_default_params();
     cp.n_threads       = mConfig->threadCount;
@@ -163,19 +141,19 @@ void Engine::loadModel() {
 
     m_ctx = llama_init_from_model(m_model, cp);
     if (!m_ctx) {
-        emit errorOccurred("Failed to create llama context.");
+        qCritical() << "QtLlama:" << errorToString(Error::ContextInitFailed);
+        emit errorOccurred(Error::ContextInitFailed);
         emit modelStatusChanged(Status::Error);
         return;
     }
 
-    buildSampler(); 
-    
+    buildSampler();
     emit modelStatusChanged(Status::Ready);
 }
 
 void Engine::reloadModel() {
-   unloadModel();
-   loadModel();
+    unloadModel();
+    loadModel();
 }
 
 void Engine::unloadModel() {
@@ -183,7 +161,6 @@ void Engine::unloadModel() {
     if (m_sampler) { llama_sampler_free(m_sampler); m_sampler = nullptr; }
     if (m_ctx)     { llama_free(m_ctx);              m_ctx     = nullptr; }
     if (m_model)   { llama_model_free(m_model);      m_model   = nullptr; }
-
     emit modelStatusChanged(Status::Idle);
 }
 
@@ -196,32 +173,26 @@ void Engine::generate(const QList<Message>& messages) {
 
     emit isGeneratingChanged(true);
     m_abort.store(false);
-
-
     llama_sampler_reset(m_sampler);
 
-
-    // 1. Format messages into a single prompt string.
     const QString formatted = applyPromptFormat(messages);
 
-    // 2. Clear KV cache.
     llama_memory_t mem = llama_get_memory(m_ctx);
     if (mem) llama_memory_clear(mem, true);
 
-    // 3. Tokenize.
     const llama_vocab* vocab = llama_model_get_vocab(m_model);
     std::string text = formatted.toStdString();
     std::vector<llama_token> tokens(text.size() + 32);
 
     int n = llama_tokenize(vocab, text.c_str(), text.size(), tokens.data(), tokens.size(), true, true);
     if (n < 0) {
-        emit errorOccurred("Failed to tokenize prompt.");
+        qCritical() << "QtLlama:" << errorToString(Error::TokenizationFailed);
+        emit errorOccurred(Error::TokenizationFailed);
         emit isGeneratingChanged(false);
         return;
     }
     tokens.resize(n);
 
-    // 4. Fill and submit the initial batch.
     llama_batch batch = llama_batch_init(mConfig->batchSize, 0, 1);
     for (int i = 0; i < n; ++i) {
         batch.token[i]      = tokens[i];
@@ -233,17 +204,17 @@ void Engine::generate(const QList<Message>& messages) {
     batch.n_tokens = n;
 
     if (llama_decode(m_ctx, batch) != 0) {
-        emit errorOccurred("Initial llama_decode failed.");
+        qCritical() << "QtLlama:" << errorToString(Error::DecodeFailed);
+        emit errorOccurred(Error::DecodeFailed);
         llama_batch_free(batch);
         emit isGeneratingChanged(false);
         return;
     }
 
-    // 5. Generation loop.
     int cur        = n;
     int tokenCount = 0;
     QString fullResponse;
-   
+
     while (!m_abort.load()) {
         if (mConfig->maxTokens > 0 && tokenCount >= mConfig->maxTokens) break;
 
@@ -267,33 +238,18 @@ void Engine::generate(const QList<Message>& messages) {
         batch.logits[0] = true;
 
         if (llama_decode(m_ctx, batch) != 0) {
-            emit errorOccurred("Inference decode failed.");
+            qCritical() << "QtLlama:" << errorToString(Error::DecodeFailed);
+            emit errorOccurred(Error::DecodeFailed);
             break;
         }
     }
 
     llama_batch_free(batch);
-
-
     emit responseReady(fullResponse);
     emit isGeneratingChanged(false);
 }
 
 void Engine::stop()  { m_abort.store(true);  }
 void Engine::reset() { m_abort.store(false); }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 } // namespace QtLlama

@@ -3,7 +3,6 @@
 #include <QString>
 #include <vector>
 #include <QSharedPointer>
-
 #include <QtLlama/Types.h>
 
 namespace QtLlama {
@@ -27,7 +26,7 @@ signals:
     void vectorReady(const std::vector<float> &embedding, const QString &text, int chunkIndex);
     void modelStatusChanged(QtLlama::Status status);
     void isGeneratingChanged(bool isProcessing);
-    void errorOccurred(const QString &message);
+    void errorOccurred(QtLlama::Error error);
     void reloadRequired();
 };
 

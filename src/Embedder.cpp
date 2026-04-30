@@ -23,7 +23,9 @@ void Embedder::initialize(IEmbedder* engine) {
     mEngine->moveToThread(mWorkerThread);
     mEngine->setConfig(mConfig);
 
-    connect(mEngine, &IEmbedder::vectorReady, this, &Embedder::embeddingReady);
+    connect(mEngine, &IEmbedder::vectorReady,        this, &Embedder::embeddingReady);
+    connect(mEngine, &IEmbedder::errorOccurred,      this, &Embedder::errorOccurred);
+    connect(mEngine, &IEmbedder::reloadRequired,     this, &Embedder::reloadRequired);
 
     connect(mEngine, &IEmbedder::isGeneratingChanged, this, [this](bool busy){
         if (mIsGenerating != busy) {
@@ -38,9 +40,6 @@ void Embedder::initialize(IEmbedder* engine) {
             emit statusChanged(mStatus);
         }
     });
-
-    connect(mEngine, &IEmbedder::errorOccurred, this, &Embedder::errorOccurred);
-    connect(mEngine, &IEmbedder::reloadRequired, this, &Embedder::reloadRequired);
 
     connect(mWorkerThread, &QThread::finished, mEngine, &QObject::deleteLater);
     mWorkerThread->start();

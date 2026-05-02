@@ -70,18 +70,16 @@ Engine::~Engine() {
 }
 
 void Engine::setConfig(QSharedPointer<Config> newConfig) {
-    const bool isFirstConfig = !mConfig || mConfig->modelPath.isEmpty();
-    const bool needsReload   = !isFirstConfig && m_ctx && requiresReload(*newConfig, *mConfig);
-    
+    const bool needsReload = m_ctx && mConfig && requiresReload(*newConfig, *mConfig);
+
     mConfig = newConfig;
 
     if (needsReload) {
         mConfig->autoReload ? reloadModel() : emit reloadRequired();
-    } else if (!m_ctx && !mConfig->modelPath.isEmpty()) {
-        loadModel();  // initial load
     } else if (m_ctx && !needsReload) {
-        buildSampler();  // sampler params changed (temp, topK, etc.) — no reload needed
+        buildSampler();  // hot params changed, no reload needed
     }
+    // m_ctx == nullptr: do nothing, loadModel() is the explicit gate
 }
 
 bool Engine::requiresReload(const Config& next, const Config& current) {

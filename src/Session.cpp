@@ -26,7 +26,6 @@ void Session::initialize(IEngine* engine) {
 
     mEngine->setParent(nullptr);
     mEngine->moveToThread(mWorkerThread);
-    mEngine->setConfig(mConfig);
 
     connect(mEngine, &IEngine::tokenGenerated, this, [this](const QString& chunk){
         emit textGenerated(chunk, mCurrentSessionId);
@@ -58,8 +57,9 @@ void Session::initialize(IEngine* engine) {
     mWorkerThread->start();
 }
 
+
 void Session::setConfig(const Config &config) {
-    *mConfig = config;
+    mConfig = QSharedPointer<Config>::create(config);  // was: *mConfig = config
     if (mEngine)
         QMetaObject::invokeMethod(mEngine, "setConfig", Q_ARG(QSharedPointer<Config>, mConfig));
 }

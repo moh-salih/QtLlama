@@ -21,7 +21,6 @@ void Embedder::initialize(IEmbedder* engine) {
     mWorkerThread = new QThread(this);
     mEngine->setParent(nullptr);
     mEngine->moveToThread(mWorkerThread);
-    mEngine->setConfig(mConfig);
 
     connect(mEngine, &IEmbedder::vectorReady,        this, &Embedder::embeddingReady);
     connect(mEngine, &IEmbedder::errorOccurred,      this, &Embedder::errorOccurred);
@@ -46,7 +45,7 @@ void Embedder::initialize(IEmbedder* engine) {
 }
 
 void Embedder::setConfig(const EmbedConfig &config) {
-    *mConfig = config;
+    mConfig = QSharedPointer<EmbedConfig>::create(config);  // was: *mConfig = config
     if (mEngine)
         QMetaObject::invokeMethod(mEngine, "setConfig", Q_ARG(QSharedPointer<EmbedConfig>, mConfig));
 }

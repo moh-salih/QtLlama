@@ -51,6 +51,7 @@ void Session::initialize(IEngine* engine) {
         emit responseReady(full, mCurrentSessionId);
     });
 
+    connect(mEngine, &IEngine::contextLengthResolved, this, &Session::contextLengthResolved);
     connect(mEngine, &IEngine::reloadRequired, this, &Session::reloadRequired);
 
     connect(mWorkerThread, &QThread::finished, mEngine, &QObject::deleteLater);

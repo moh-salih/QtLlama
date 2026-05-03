@@ -37,6 +37,7 @@ signals:
     void isGeneratingChanged(bool isGenerating);
     void statusChanged(QtLlama::Status status);
     void errorOccurred(QtLlama::Error error);
+    void contextLengthResolved(int resolvedLength);
     void reloadRequired();
 
 private:

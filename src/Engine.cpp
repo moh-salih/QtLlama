@@ -1,6 +1,8 @@
 #include <QtLlama/Engine.h>
 #include <QtLlama/LlamaBackend.h>
 #include <QDebug>
+#include <stdexcept>
+#include <algorithm>
 
 namespace {
 using namespace QtLlama;
@@ -77,17 +79,17 @@ void Engine::setConfig(QSharedPointer<Config> newConfig) {
     if (needsReload) {
         mConfig->autoReload ? reloadModel() : emit reloadRequired();
     } else if (m_ctx && !needsReload) {
-        buildSampler();  // hot params changed, no reload needed
+        buildSampler(); // hot params changed, no reload needed
     }
     // m_ctx == nullptr: do nothing, loadModel() is the explicit gate
 }
 
 bool Engine::requiresReload(const Config& next, const Config& current) {
-    return next.modelPath       != current.modelPath
-        || next.contextLength   != current.contextLength
-        || next.batchSize       != current.batchSize
-        || next.threadCount     != current.threadCount
-        || next.nGpuLayers      != current.nGpuLayers;
+    return next.modelPath     != current.modelPath
+        || next.contextLength != current.contextLength
+        || next.batchSize     != current.batchSize
+        || next.threadCount   != current.threadCount
+        || next.nGpuLayers    != current.nGpuLayers;
 }
 
 void Engine::buildSampler() {
@@ -107,7 +109,13 @@ void Engine::buildSampler() {
 }
 
 void Engine::loadModel() {
-    unloadModel();
+    // Fully reset state before attempting load so requiresReload()
+    // never sees a stale m_ctx on the next setConfig() call.
+    m_abort.store(true);
+    if (m_sampler) { llama_sampler_free(m_sampler); m_sampler = nullptr; }
+    if (m_ctx)     { llama_free(m_ctx);              m_ctx     = nullptr; }
+    if (m_model)   { llama_model_free(m_model);      m_model   = nullptr; }
+
     emit modelStatusChanged(Status::Loading);
 
     if (!mConfig || mConfig->modelPath.isEmpty()) {
@@ -117,9 +125,22 @@ void Engine::loadModel() {
         return;
     }
 
-    llama_model_params mp = llama_model_default_params();
-    mp.n_gpu_layers = mConfig->nGpuLayers;
-    m_model = llama_model_load_from_file(mConfig->modelPath.toStdString().c_str(), mp);
+    // ── Load model ────────────────────────────────────────────────────────────
+    try {
+        llama_model_params mp = llama_model_default_params();
+        mp.n_gpu_layers = mConfig->nGpuLayers;
+        m_model = llama_model_load_from_file(mConfig->modelPath.toStdString().c_str(), mp);
+    } catch (const std::exception& e) {
+        qCritical() << "QtLlama: Exception loading model:" << e.what();
+        emit errorOccurred(Error::ModelLoadFailed);
+        emit modelStatusChanged(Status::Error);
+        return;
+    } catch (...) {
+        qCritical() << "QtLlama: Unknown exception loading model (possibly OOM).";
+        emit errorOccurred(Error::ModelLoadFailed);
+        emit modelStatusChanged(Status::Error);
+        return;
+    }
 
     if (!m_model) {
         qCritical() << "QtLlama:" << errorToString(Error::ModelLoadFailed);
@@ -130,21 +151,63 @@ void Engine::loadModel() {
 
     mPromptFormatter = autoDetect(m_model);
 
-    llama_context_params cp = llama_context_default_params();
-    cp.n_threads       = mConfig->threadCount;
-    cp.n_batch         = mConfig->batchSize;
-    cp.n_threads_batch = mConfig->batchThreads;
-    cp.n_ctx           = mConfig->contextLength == 0 ? llama_model_n_ctx_train(m_model) : mConfig->contextLength;
+    // ── Resolve context length ─────────────────────────────────────────────────
+    // contextLength == 0 means "use the model's trained context length".
+    // We also clamp user-supplied values to the model's trained max so we
+    // never request more context than the model supports.
+    const int trainedCtx  = llama_model_n_ctx_train(m_model);
+    const int clampedCtx  = mConfig->contextLength == 0
+                            ? trainedCtx
+                            : std::min(mConfig->contextLength, trainedCtx);
+    const int resolvedCtx = std::max(clampedCtx, 512); // defensive floor
 
-    m_ctx = llama_init_from_model(m_model, cp);
-    if (!m_ctx) {
-        qCritical() << "QtLlama:" << errorToString(Error::ContextInitFailed);
+    if (mConfig->contextLength > trainedCtx) {
+        qWarning() << "QtLlama: Requested context length" << mConfig->contextLength
+                   << "exceeds model's trained maximum" << trainedCtx
+                   << "— clamped to" << trainedCtx;
+    }
+
+    // ── Initialize context ────────────────────────────────────────────────────
+    try {
+        llama_context_params cp = llama_context_default_params();
+        cp.n_threads       = mConfig->threadCount;
+        cp.n_batch         = mConfig->batchSize;
+        cp.n_threads_batch = mConfig->batchThreads;
+        cp.n_ctx           = resolvedCtx;
+
+        m_ctx = llama_init_from_model(m_model, cp);
+    } catch (const std::exception& e) {
+        qCritical() << "QtLlama: Exception initializing context:" << e.what();
+        // Reset model too — partial state must not survive
+        llama_model_free(m_model);
+        m_model = nullptr;
+        emit errorOccurred(Error::ContextInitFailed);
+        emit modelStatusChanged(Status::Error);
+        return;
+    } catch (...) {
+        qCritical() << "QtLlama: Unknown exception initializing context (possibly OOM).";
+        llama_model_free(m_model);
+        m_model = nullptr;
         emit errorOccurred(Error::ContextInitFailed);
         emit modelStatusChanged(Status::Error);
         return;
     }
 
+    if (!m_ctx) {
+        qCritical() << "QtLlama:" << errorToString(Error::ContextInitFailed);
+        llama_model_free(m_model);
+        m_model = nullptr;
+        emit errorOccurred(Error::ContextInitFailed);
+        emit modelStatusChanged(Status::Error);
+        return;
+    }
+
+    // Emit the actual context length the context was initialized with —
+    // this is the ground truth value regardless of what was configured.
+    emit contextLengthResolved(llama_n_ctx(m_ctx));
+
     buildSampler();
+    m_abort.store(false);
     emit modelStatusChanged(Status::Ready);
 }
 
@@ -192,11 +255,11 @@ void Engine::generate(const QList<Message>& messages) {
 
     llama_batch batch = llama_batch_init(mConfig->batchSize, 0, 1);
     for (int i = 0; i < n; ++i) {
-        batch.token[i]      = tokens[i];
-        batch.pos[i]        = i;
-        batch.n_seq_id[i]   = 1;
-        batch.seq_id[i][0]  = 0;
-        batch.logits[i]     = (i == n - 1);
+        batch.token[i]     = tokens[i];
+        batch.pos[i]       = i;
+        batch.n_seq_id[i]  = 1;
+        batch.seq_id[i][0] = 0;
+        batch.logits[i]    = (i == n - 1);
     }
     batch.n_tokens = n;
 
